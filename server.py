@@ -2,6 +2,7 @@ import json
 import os
 import re
 import random
+import time
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -116,16 +117,35 @@ def generate_quiz():
             "ブログ記事：\n" + context_text
         )
 
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt,
-        )
+        # Gemini呼び出し（503時は最大3回リトライ）
+        last_error = None
+        quiz_data = None
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=prompt,
+                )
+                raw = response.text.strip()
+                m = re.search(r'\{.*\}', raw, re.DOTALL)
+                if not m:
+                    raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
+                quiz_data = json.loads(m.group())
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < 2:
+                    time.sleep(1)
 
-        raw = response.text.strip()
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not match:
-            raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
-        quiz_data = json.loads(match.group())
+        if quiz_data is None:
+            raise last_error
+
+        # explanationが空の場合のフォールバック
+        if not quiz_data.get("explanation"):
+            answer_idx = quiz_data.get("answer_index", 0)
+            choices = quiz_data.get("choices", [])
+            correct = choices[answer_idx] if answer_idx < len(choices) else ""
+            quiz_data["explanation"] = f"正解は「{correct}」です。ブログ記事を参考にしてください。"
 
         quiz_data["source_urls"]   = [s["url"] for s in sources]
         quiz_data["source_titles"] = [s["title"] for s in sources]
