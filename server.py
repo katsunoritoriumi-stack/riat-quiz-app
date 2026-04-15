@@ -31,6 +31,29 @@ url_to_article = {a["url"]: a for a in all_articles}
 print(str(len(all_articles)) + " articles loaded")
 
 
+def _nums(*parts):
+    result = []
+    for p in parts:
+        if isinstance(p, tuple):
+            result.extend(range(p[0], p[1] + 1))
+        else:
+            result.append(p)
+    return result
+
+CATEGORY_ARTICLES = {
+    "陰陽論・生命哲学": _nums((1,7), (9,10), (13,16), (19,28), (30,40), (42,70)),
+    "宇宙・銀河の歴史": _nums((71,93), 101, (103,108), (110,121), (123,131)),
+    "宇宙医学・健康":   _nums(132, 134, (136,139), (143,177), (179,189), (193,229), (231,243), 245, 248, 249, (251,260)),
+    "ウイルス・感染症": _nums((262,292), (294,323), 325, (327,355), (357,360), 363, (365,376), (378,388), (390,402)),
+    "日本・龍神島の歴史": _nums(8, 11, 12, 17, 18, (135,138), 140, 178, 230, 250, 361, 362),
+    "天体・地球環境":   _nums(5, (94,100), 102, 109, 122, 132, 133, (141,142), 190, 212, 261, 293, (367,370), 399),
+}
+
+def _category_urls(category):
+    nums = CATEGORY_ARTICLES.get(category, [])
+    return [f"https://seimeiron.com/blog{n:03d}/" for n in nums]
+
+
 # ウォームアップ用エンドポイント（スリープ対策）
 @app.route("/warmup", methods=["GET"])
 def warmup():
@@ -45,6 +68,7 @@ def generate_quiz():
 
     RANDOM_KEYWORDS = ["人生", "仕事", "健康", "お金", "人間関係", "習慣", "成長", "幸福"]
     query_text = category if category else random.choice(RANDOM_KEYWORDS)
+    category_urls = _category_urls(category) if category in CATEGORY_ARTICLES else None
 
     try:
         embed_result = client.models.embed_content(
@@ -53,11 +77,14 @@ def generate_quiz():
             config={"output_dimensionality": 768},
         )
         query_vector = embed_result.embeddings[0].values
-        search_result = index.query(
-            vector=query_vector,
-            top_k=3,
-            include_metadata=True,
-        )
+        query_kwargs = {
+            "vector": query_vector,
+            "top_k": 3,
+            "include_metadata": True,
+        }
+        if category_urls:
+            query_kwargs["filter"] = {"url": {"$in": category_urls}}
+        search_result = index.query(**query_kwargs)
 
         context_parts = []
         sources = []
