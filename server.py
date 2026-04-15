@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import random
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
@@ -94,11 +95,10 @@ def generate_quiz():
         )
 
         raw = response.text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        quiz_data = json.loads(raw.strip())
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not match:
+            raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
+        quiz_data = json.loads(match.group())
 
         quiz_data["source_urls"]   = [s["url"] for s in sources]
         quiz_data["source_titles"] = [s["title"] for s in sources]
@@ -161,11 +161,10 @@ def explain():
         )
 
         raw = response.text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        explain_data = json.loads(raw.strip())
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not match:
+            raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
+        explain_data = json.loads(match.group())
 
         return jsonify({
             "is_correct":    is_correct,
