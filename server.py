@@ -79,7 +79,7 @@ def generate_quiz():
         query_vector = embed_result.embeddings[0].values
         query_kwargs = {
             "vector": query_vector,
-            "top_k": 3,
+            "top_k": 1,
             "include_metadata": True,
         }
         if category_urls:
