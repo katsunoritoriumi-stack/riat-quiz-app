@@ -7,22 +7,18 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from google import genai
-from pinecone import Pinecone
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-GENAI_API_KEY    = os.environ.get("GENAI_API_KEY")
-PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
+GENAI_API_KEY = os.environ.get("GENAI_API_KEY")
 
-if not GENAI_API_KEY or not PINECONE_API_KEY:
-    raise RuntimeError("GENAI_API_KEY と PINECONE_API_KEY を設定してください")
+if not GENAI_API_KEY:
+    raise RuntimeError("GENAI_API_KEY を設定してください")
 
 client = genai.Client(api_key=GENAI_API_KEY)
-pc = Pinecone(api_key=PINECONE_API_KEY)
-index = pc.Index("seimeiron-blog")
 
 print("loading...")
 with open("blog_data.json", "r", encoding="utf-8") as fl:
@@ -67,35 +63,22 @@ def generate_quiz():
     category = data.get("category", "").strip()
     difficulty = data.get("difficulty", "normal")
 
-    RANDOM_KEYWORDS = ["人生", "仕事", "健康", "お金", "人間関係", "習慣", "成長", "幸福"]
-    query_text = category if category else random.choice(RANDOM_KEYWORDS)
-    category_urls = _category_urls(category) if category in CATEGORY_ARTICLES else None
-
     try:
-        embed_result = client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=query_text,
-            config={"output_dimensionality": 768},
-        )
-        query_vector = embed_result.embeddings[0].values
-        query_kwargs = {
-            "vector": query_vector,
-            "top_k": 1,
-            "include_metadata": True,
-        }
-        if category_urls:
-            query_kwargs["filter"] = {"url": {"$in": category_urls}}
-        search_result = index.query(**query_kwargs)
-
         context_parts = []
         sources = []
-        for match in search_result["matches"]:
-            meta = match["metadata"]
-            title = meta.get("title", "")
-            url = meta.get("url", "")
-            content = url_to_article.get(url, {}).get("content", meta.get("content", ""))
-            context_parts.append("タイトル: " + title + "\n本文:\n" + content)
-            sources.append({"title": title, "url": url})
+
+        if category and category in CATEGORY_ARTICLES:
+            category_urls = _category_urls(category)
+            url = random.choice(category_urls)
+            article = url_to_article.get(url) or random.choice(all_articles)
+        else:
+            article = random.choice(all_articles)
+            url = article.get("url", "")
+
+        title = article.get("title", "")
+        content = article.get("content", "")
+        context_parts.append("タイトル: " + title + "\n本文:\n" + content)
+        sources.append({"title": title, "url": url})
 
         context_text = "\n---\n".join(context_parts)
         difficulty_label = {
