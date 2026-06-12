@@ -28,27 +28,29 @@ url_to_article = {a["url"]: a for a in all_articles}
 print(str(len(all_articles)) + " articles loaded")
 
 
-def _nums(*parts):
-    result = []
-    for p in parts:
-        if isinstance(p, tuple):
-            result.extend(range(p[0], p[1] + 1))
-        else:
-            result.append(p)
-    return result
-
-CATEGORY_ARTICLES = {
-    "陰陽論・生命哲学": _nums((1,7), (9,10), (13,16), (19,28), (30,40), (42,70)),
-    "宇宙・銀河の歴史": _nums((71,93), 101, (103,108), (110,121), (123,131)),
-    "宇宙医学・健康":   _nums(132, 134, (136,139), (143,177), (179,189), (193,229), (231,243), 245, 248, 249, (251,260)),
-    "ウイルス・感染症": _nums((262,292), (294,323), 325, (327,355), (357,360), 363, (365,376), (378,388), (390,402)),
-    "日本・龍神島の歴史": _nums(8, 11, 12, 17, 18, (135,138), 140, 178, 230, 250, 361, 362),
-    "天体・地球環境":   _nums(5, (94,100), 102, 109, 122, 132, 133, (141,142), 190, 212, 261, 293, (367,370), 399),
+# カテゴリーごとの特徴的キーワードの定義
+KEYWORDS = {
+    "陰陽論・生命哲学": ["陰陽", "力気", "磁気", "バイオン", "バイゾン", "魂体", "位相帯", "心動帯", "覚醒意識", "潜在意識", "生命論", "生命哲学", "霊界", "ズザネ管", "物質世界", "アストラル体", "想念", "心", "精神"],
+    "宇宙・銀河の歴史": ["銀河", "恒星", "シリウス", "オリオン", "ビックバン", "宇宙戦士", "ソロジン", "円盤", "マクロ宇宙", "原始宇宙", "プレアデス", "アルデバラン", "星"],
+    "宇宙医学・健康": ["宇宙医学", "手術", "視力", "治療", "医療団", "ヒール遺伝", "ハオリ医療団", "病気", "健康", "肉体"],
+    "ウイルス・感染症": ["ウイルス", "感染症", "コロナ", "ワクチン", "病原体", "細菌", "インフルエンザ", "パンデミック", "ウイロイド", "発熱", "咳", "下痢"],
+    "日本・龍神島の歴史": ["龍神島", "高天原", "大宇宙民族", "縄文", "日本国", "皇族", "自衛隊"],
+    "天体・地球環境": ["大気圏", "地殻", "岩盤", "太陽フレア", "氷河期", "温暖化", "地球力場", "マントル", "超新星爆発"]
 }
 
-def _category_urls(category):
-    nums = CATEGORY_ARTICLES.get(category, [])
-    return [f"https://seimeiron.com/blog{n:03d}/" for n in nums]
+# 起動時に全ブログ記事を自動分類してキャッシュする
+category_articles_cache = {cat: [] for cat in KEYWORDS}
+
+for art in all_articles:
+    text = art.get("title", "") + " " + art.get("content", "")
+    matched = False
+    for cat, kws in KEYWORDS.items():
+        if any(kw in text for kw in kws):
+            category_articles_cache[cat].append(art)
+            matched = True
+    if not matched:
+        # いずれのキーワードにもマッチしなかった場合のフォールバック先
+        category_articles_cache["陰陽論・生命哲学"].append(art)
 
 
 # ウォームアップ用エンドポイント（スリープ対策）
@@ -67,13 +69,13 @@ def generate_quiz():
         context_parts = []
         sources = []
 
-        if category and category in CATEGORY_ARTICLES:
-            category_urls = _category_urls(category)
-            url = random.choice(category_urls)
-            article = url_to_article.get(url) or random.choice(all_articles)
+        if category and category in category_articles_cache:
+            articles_in_cat = category_articles_cache[category]
+            article = random.choice(articles_in_cat) if articles_in_cat else random.choice(all_articles)
         else:
             article = random.choice(all_articles)
-            url = article.get("url", "")
+        
+        url = article.get("url", "")
 
         title = article.get("title", "")
         content = article.get("content", "")
