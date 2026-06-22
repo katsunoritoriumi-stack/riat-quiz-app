@@ -117,29 +117,24 @@ def generate_quiz():
             "ブログ記事：\n" + context_text
         )
 
-        # Gemini呼び出し（503時はフォールバックモデルで再試行）
-        MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"]
+        # Gemini呼び出し（安定性重視: 2.0-flashをメインに最大4回リトライ）
         last_error = None
         quiz_data = None
-        for model_name in MODELS:
-            for attempt in range(2):
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt,
-                    )
-                    raw = response.text.strip()
-                    m = re.search(r'\{.*\}', raw, re.DOTALL)
-                    if not m:
-                        raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
-                    quiz_data = json.loads(m.group())
-                    break
-                except Exception as e:
-                    last_error = e
-                    if attempt < 1:
-                        time.sleep(1)
-            if quiz_data:
+        for attempt in range(4):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt,
+                )
+                raw = response.text.strip()
+                m = re.search(r'\{.*\}', raw, re.DOTALL)
+                if not m:
+                    raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
+                quiz_data = json.loads(m.group())
                 break
+            except Exception as e:
+                last_error = e
+                time.sleep(2)
 
         if quiz_data is None:
             raise last_error
@@ -207,10 +202,10 @@ def explain():
         )
 
         explain_data = None
-        for model_name in ["gemini-2.5-flash", "gemini-2.0-flash"]:
+        for attempt in range(4):
             try:
                 response = client.models.generate_content(
-                    model=model_name,
+                    model="gemini-2.0-flash",
                     contents=prompt,
                 )
                 raw = response.text.strip()
@@ -220,9 +215,9 @@ def explain():
                 explain_data = json.loads(match.group())
                 break
             except Exception:
-                continue
+                time.sleep(2)
         if not explain_data:
-            raise RuntimeError("すべてのモデルで生成に失敗しました")
+            raise RuntimeError("解説の生成に失敗しました")
 
         return jsonify({
             "is_correct":    is_correct,
