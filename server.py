@@ -3,7 +3,7 @@ import os
 import re
 import random
 import time
-# deploy trigger v2
+DEPLOY_VERSION = "v3-2.0-flash"
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -55,7 +55,7 @@ def _category_urls(category):
 # ウォームアップ用エンドポイント（スリープ対策）
 @app.route("/warmup", methods=["GET"])
 def warmup():
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "version": DEPLOY_VERSION})
 
 
 @app.route("/generate-quiz", methods=["POST"])
