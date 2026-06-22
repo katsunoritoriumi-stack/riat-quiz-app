@@ -69,16 +69,25 @@ def generate_quiz():
 
         if category and category in CATEGORY_ARTICLES:
             category_urls = _category_urls(category)
-            url = random.choice(category_urls)
-            article = url_to_article.get(url) or random.choice(all_articles)
+            candidate_articles = []
+            for u in category_urls:
+                a = url_to_article.get(u)
+                if a:
+                    candidate_articles.append((u, a))
+            sample_size = min(5, len(candidate_articles))
+            sampled = random.sample(candidate_articles, sample_size)
+            for url, article in sampled:
+                title = article.get("title", "")
+                content = article.get("content", "")
+                context_parts.append("タイトル: " + title + "\n本文:\n" + content)
+                sources.append({"title": title, "url": url})
         else:
             article = random.choice(all_articles)
             url = article.get("url", "")
-
-        title = article.get("title", "")
-        content = article.get("content", "")
-        context_parts.append("タイトル: " + title + "\n本文:\n" + content)
-        sources.append({"title": title, "url": url})
+            title = article.get("title", "")
+            content = article.get("content", "")
+            context_parts.append("タイトル: " + title + "\n本文:\n" + content)
+            sources.append({"title": title, "url": url})
 
         context_text = "\n---\n".join(context_parts)
         difficulty_label = {
@@ -88,9 +97,17 @@ def generate_quiz():
         }.get(difficulty, "ふつう")
 
         # クイズと解説を1回のAPIで同時生成
+        category_instruction = ""
+        if category and category in CATEGORY_ARTICLES:
+            category_instruction = (
+                f"カテゴリ「{category}」に関する内容からクイズを作成してください。"
+                "以下の複数の記事を横断的に読み、このカテゴリの重要なポイントから出題してください。\n"
+            )
+
         prompt = (
             "以下のブログ記事の内容をもとに、日本語の4択クイズを1問と、その解説を作成してください。\n"
-            f"難易度は「{difficulty_label}」です。\n\n"
+            + category_instruction
+            + f"難易度は「{difficulty_label}」です。\n\n"
             "必ずJSON形式のみで返してください。前置きや説明文は一切不要です。\n"
             "JSONの形式：\n"
             '{"question": "問題文", '
