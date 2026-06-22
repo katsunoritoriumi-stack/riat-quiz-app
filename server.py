@@ -117,25 +117,29 @@ def generate_quiz():
             "ブログ記事：\n" + context_text
         )
 
-        # Gemini呼び出し（503時は最大3回リトライ）
+        # Gemini呼び出し（503時はフォールバックモデルで再試行）
+        MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"]
         last_error = None
         quiz_data = None
-        for attempt in range(3):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt,
-                )
-                raw = response.text.strip()
-                m = re.search(r'\{.*\}', raw, re.DOTALL)
-                if not m:
-                    raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
-                quiz_data = json.loads(m.group())
+        for model_name in MODELS:
+            for attempt in range(2):
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                    )
+                    raw = response.text.strip()
+                    m = re.search(r'\{.*\}', raw, re.DOTALL)
+                    if not m:
+                        raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
+                    quiz_data = json.loads(m.group())
+                    break
+                except Exception as e:
+                    last_error = e
+                    if attempt < 1:
+                        time.sleep(1)
+            if quiz_data:
                 break
-            except Exception as e:
-                last_error = e
-                if attempt < 2:
-                    time.sleep(1)
 
         if quiz_data is None:
             raise last_error
@@ -202,16 +206,23 @@ def explain():
             '{"explanation": "解説文（200〜300文字程度）"}'
         )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
-
-        raw = response.text.strip()
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not match:
-            raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
-        explain_data = json.loads(match.group())
+        explain_data = None
+        for model_name in ["gemini-2.5-flash", "gemini-2.0-flash"]:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                )
+                raw = response.text.strip()
+                match = re.search(r'\{.*\}', raw, re.DOTALL)
+                if not match:
+                    raise json.JSONDecodeError("JSONが見つかりません", raw, 0)
+                explain_data = json.loads(match.group())
+                break
+            except Exception:
+                continue
+        if not explain_data:
+            raise RuntimeError("すべてのモデルで生成に失敗しました")
 
         return jsonify({
             "is_correct":    is_correct,
