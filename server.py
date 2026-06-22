@@ -124,7 +124,7 @@ def generate_quiz():
         for attempt in range(4):
             try:
                 response = client.models.generate_content(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.0-flash-lite",
                     contents=prompt,
                 )
                 raw = response.text.strip()
@@ -206,7 +206,7 @@ def explain():
         for attempt in range(4):
             try:
                 response = client.models.generate_content(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.0-flash-lite",
                     contents=prompt,
                 )
                 raw = response.text.strip()
